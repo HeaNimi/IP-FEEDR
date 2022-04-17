@@ -1,7 +1,9 @@
 import os
 import sys
 import cgi
+import logging
 import requests
+import logging
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from ipaddress import ip_interface
 
@@ -9,13 +11,25 @@ HOST_NAME = '0.0.0.0'
 PORT = 8080
 DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/965013439175073853/68GhGgtoYIOaGy87f-nfIwL3jfMity4BB8QgSl6gxGa08Vu1TcmbhaJBeyB4gYEw1FFG'
 
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# this is just to make the output look nice
+formatter = logging.Formatter(fmt="%(asctime)s %(name)s.%(levelname)s: %(message)s", datefmt="%Y.%m.%d %H:%M:%S")
+
+# this logs to stdout and I think it is flushed immediately
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
 def ip_check(ipnet: list):
     ipaddressSet = set()
     for singleip in ipnet:
         try:
             ip_interface(singleip).with_prefixlen
         except ValueError:
-            print(f'does not appear to be an IPv4 or IPv6 interface: {singleip}')
+            logger.info(f'does not appear to be an IPv4 or IPv6 interface: {singleip}')
         else:
             ipaddressSet.add(singleip)
     return ipaddressSet
@@ -44,7 +58,6 @@ def web_hook(ipaddressSet: set, reason: str):
             }
         ]
     }
-    print(data)
     requests.post(DISCORD_WEBHOOK, json=data)
     return
 
@@ -60,6 +73,7 @@ def delete_ip_from_file(ipaddressSet: set):
                         output.write(f'{line}\r\n')
                     else:
                         ipaddressesremoved.add(line)
+                        logger.info(f'IPs removed {line}')
         os.replace('tmpv4.txt', 'ipv4.txt')
     if ListOfipv6addresses:
         with open('ipv6.txt', 'r') as input:
@@ -69,6 +83,7 @@ def delete_ip_from_file(ipaddressSet: set):
                         output.write(f'{line}\r\n')
                     else:
                         ipaddressesremoved.add(line)
+                        logger.info(f'IPs removed {line}')
         os.replace('tmpv6.txt', 'ipv6.txt')
     return ipaddressesremoved
 
@@ -83,12 +98,14 @@ def add_ip_to_file(ipaddressSet: set):
             if not singleipv4adress in filelines:
                 file.write(f'{singleipv4adress}\r\n')
                 ipaddressesadded.add(singleipv4adress)
+                logger.info(f'IPs added {singleipv4adress}')
     with open('ipv6.txt', 'r+') as file:
         filelines = file.read().splitlines()
         for singleipv6adress in ListOfipv6addresses:
             if not singleipv6adress in filelines:
                 file.write(f'{singleipv6adress}\r\n')
                 ipaddressesadded.add(singleipv6adress)
+                logger.info(f'IPs added {singleipv6adress}')
     return ipaddressesadded
 
 
@@ -121,23 +138,23 @@ class ip_feeder(SimpleHTTPRequestHandler):
             if ctype == 'multipart/form-data':
                 parsedfields = cgi.parse_multipart(self.rfile, pdict)
                 if not {'ip', 'reason'} <= parsedfields.keys():
-                    print(f'bad ip from {self.client_address}')
+                    logger.info(f'bad ip from {self.client_address}')
                     self.write_response(400, 'text/plain', 'missing ip or reason\r\n')
                     return
                 ipaddressSet = ip_check(parsedfields.get('ip'))
                 if ipaddressSet:
                     ipaddressesadded = add_ip_to_file(ipaddressSet)
                     if ipaddressesadded:
-                        #web_hook(ipaddressesadded, parsedfields.get('reason'))
+                        web_hook(ipaddressesadded, parsedfields.get('reason'))
                         self.write_response(200, 'text/plain', 'IPs added\r\n')
                     else:
                         self.write_response(200, 'text/plain', 'IPs already in list\r\n')
 
                 else:
-                    print(f'bad ip from {self.client_address}')
+                    logger.info(f'bad ip from {self.client_address}')
                     self.write_response(400, 'text/plain')
             else:
-                print(f'bad request from {self.client_address}')
+                logger.info(f'bad request from {self.client_address}')
                 self.write_response(400, 'text/plain')
 
         elif self.path == '/ip/delete':
@@ -147,7 +164,7 @@ class ip_feeder(SimpleHTTPRequestHandler):
             if ctype == 'multipart/form-data':
                 parsedfields = cgi.parse_multipart(self.rfile, pdict)
                 if not {'ip', 'reason'} <= parsedfields.keys():
-                    print(f'bad ip from {self.client_address}')
+                    logger.info(f'bad ip from {self.client_address}')
                     self.write_response(400, 'text/plain', 'missing ip or reason\r\n')
                     return
                 ipaddressSet = ip_check(parsedfields.get('ip'))
@@ -159,10 +176,10 @@ class ip_feeder(SimpleHTTPRequestHandler):
                     else:
                         self.write_response(200, 'text/plain', 'IPs not in a list\r\n')
                 else:
-                    print(f'bad ip from {self.client_address}')
+                    logger.info(f'bad ip from {self.client_address}')
                     self.write_response(400, 'text/plain')
             else:
-                print(f'bad request from {self.client_address}')
+                logger.info(f'bad request from {self.client_address}')
                 self.write_response(400, 'text/plain')
         else:
             self.write_response(400, 'text/plain')
@@ -189,10 +206,10 @@ if __name__ == '__main__':
         f.close()
       
     server = HTTPServer((HOST_NAME, PORT),  ip_feeder)
-    print(f'Server started http://{HOST_NAME}:{PORT}')
+    logger.info(f'Server started http://{HOST_NAME}:{PORT}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         server.server_close()
-        print('exited successfully')
+        logger.info('exited successfully')
         sys.exit(0)
