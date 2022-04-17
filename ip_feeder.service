@@ -1,0 +1,14 @@
+[Unit]
+Description=simple ip feeder
+
+[Service]
+Type=simple
+WorkingDirectory=/root/ip_feeder
+ExecStart=/usr/bin/python3 /root/ip_feeder/main.py &
+TimeoutStopSec=1
+Restart=always
+RestartSec=2
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target
