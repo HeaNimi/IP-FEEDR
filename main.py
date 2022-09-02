@@ -9,7 +9,7 @@ from ipaddress import ip_interface
 
 HOST_NAME = '0.0.0.0'
 PORT = 8080
-DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/965013439175073853/68GhGgtoYIOaGy87f-nfIwL3jfMity4BB8QgSl6gxGa08Vu1TcmbhaJBeyB4gYEw1FFG'
+DISCORD_WEBHOOK = 'https://discord.com/api/XXX'
 
 
 logger = logging.getLogger(__name__)
